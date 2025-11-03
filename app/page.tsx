@@ -12,7 +12,7 @@ type CaptureStage = "product" | "ingredients" | "completed";
 interface HaramCheckResult {
   has_label_in_image: boolean;
   used_label_text: boolean;
-  judgment: "HALAL" | "HARAM" | "UNKNOWN";
+  judgment: "HALAL" | "NOT_HALAL" | "UNKNOWN";
   confidence: number;
   evidence: { positive: string[]; negative: string[] };
   certifications: string[];
@@ -32,20 +32,21 @@ interface HaramCheckResult {
 export default function HomePage() {
   // ★ 撮影段階を管理：product（1枚目）→ ingredients（2枚目）→ completed（完了）
   const [captureStage, setCaptureStage] = useState<CaptureStage>("product");
-  
+
   // ★ 保存された画像（Blob URL で管理）
   const [productImage, setProductImage] = useState<{ file: File; url: string } | null>(null);
   const [ingredientsImage, setIngredientsImage] = useState<{ file: File; url: string } | null>(null);
-  
+
   const [showPreview, setShowPreview] = useState<boolean>(false);
-  
+
   // ★ MediaStream を useState で保持（ストリーム停止を防ぐ）
   const [stream, setStream] = useState<MediaStream | null>(null);
 
   // ★ ハラル判定結果を表示するかどうか
   const [showResult, setShowResult] = useState<boolean>(false);
   const [haramCheckResult, setHaramCheckResult] = useState<HaramCheckResult | null>(null);
-  
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -103,7 +104,7 @@ export default function HomePage() {
         if (videoRef.current) {
           console.log("[startCamera] Setting srcObject");
           videoRef.current.srcObject = stream;
-          
+
           // 複数回 play() を試みる
           const playVideo = () => {
             if (videoRef.current) {
@@ -151,7 +152,7 @@ export default function HomePage() {
       // ★ ビデオ要素へ直接設定
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
-        
+
         const playVideo = () => {
           if (videoRef.current) {
             videoRef.current.play().catch((err) => {
@@ -210,7 +211,7 @@ export default function HomePage() {
     console.log(`[capturePhoto] captureStage: ${captureStage}, videoRef: ${videoRef.current ? 'exists' : 'null'}, canvasRef: ${canvasRef.current ? 'exists' : 'null'}`);
     if (videoRef.current && canvasRef.current) {
       console.log(`[capturePhoto] videoWidth=${videoRef.current.videoWidth}, videoHeight=${videoRef.current.videoHeight}, readyState=${videoRef.current.readyState}`);
-      
+
       // ビデオがまだ準備完了していない場合は待つ
       if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
         console.warn("[capturePhoto] Video not ready yet, retrying...");
@@ -292,13 +293,71 @@ export default function HomePage() {
     }, 100);
   };
 
+  // ★ File オブジェクトを base64 に変換
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // data:image/jpeg;base64,xxx の形式から base64 部分だけを抽出
+        if (result.startsWith('data:')) {
+          resolve(result.split(',')[1]);
+        } else {
+          resolve(result);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   // ★ 確認ボタン（両画像が保存されている状態）
-  const confirmPhotos = () => {
-    console.log("Product image:", productImage?.file);
-    console.log("Ingredients image:", ingredientsImage?.file);
-    // ★ モックレスポンスを表示
-    setHaramCheckResult(mockHaramCheckResult);
-    setShowResult(true);
+  const confirmPhotos = async () => {
+    if (!productImage?.file || !ingredientsImage?.file) {
+      alert("両方の画像が必要です");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      console.log("Product image:", productImage?.file);
+      console.log("Ingredients image:", ingredientsImage?.file);
+
+      // 画像を base64 に変換
+      const image1Base64 = await fileToBase64(productImage.file);
+      const image2Base64 = await fileToBase64(ingredientsImage.file);
+
+      console.log("Calling haram-check API...");
+
+      // APIルート経由でGemini APIを呼び出す
+      const response = await fetch("/api/haram-check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image1: image1Base64,
+          image2: image2Base64,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("API response:", result);
+
+      // 結果を設定
+      setHaramCheckResult(result);
+      setShowResult(true);
+    } catch (error) {
+      console.error("Error calling API:", error);
+      alert(`エラーが発生しました: ${error instanceof Error ? error.message : "不明なエラー"}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ★ 指示テキストを取得
@@ -319,6 +378,7 @@ export default function HomePage() {
     setIngredientsImage(null);
     setCaptureStage("product");
     setShowPreview(false);
+    window.location.reload();
   };
 
   const userInfomation = "";
@@ -334,13 +394,13 @@ export default function HomePage() {
             {/* ヘッダー */}
             <div className="text-center mb-8 pb-6 border-b-4" style={{ borderColor: "#3EB34F" }}>
               <h1 className="text-4xl font-bold mb-2" style={{ color: "#3EB34F" }}>
-                ハラル判定結果
+                判定結果
               </h1>
               <p className="text-gray-600 text-lg">詳細な分析結果</p>
             </div>
 
             {/* 判定結果セクション */}
-            <div 
+            {/* <div
               className="rounded-xl p-8 text-white shadow-lg"
               style={{ backgroundColor: "#3EB34F" }}
             >
@@ -350,9 +410,9 @@ export default function HomePage() {
                   <h2 className="text-4xl font-bold">
                     {haramCheckResult.judgment === "HALAL"
                       ? "✓ ハラル"
-                      : haramCheckResult.judgment === "HARAM"
-                      ? "✗ ハラム"
-                      : "？ 不明"}
+                      : haramCheckResult.judgment === "NOT_HALAL"
+                        ? "✗ ハラム"
+                        : "？ 不明"}
                   </h2>
                 </div>
                 <div className="text-right">
@@ -360,7 +420,7 @@ export default function HomePage() {
                   <p className="text-4xl font-bold">{(haramCheckResult.confidence * 100).toFixed(0)}%</p>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* 成分情報セクション */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -397,14 +457,14 @@ export default function HomePage() {
               </div>
 
               {/* 安全な成分 */}
-              <div 
+              <div
                 className="border-l-4 rounded-lg p-5 text-white"
-                style={{ 
+                style={{
                   borderColor: "#3EB34F",
                   backgroundColor: "rgba(62, 179, 79, 0.1)"
                 }}
               >
-                <h3 
+                <h3
                   className="font-bold mb-3 flex items-center gap-2 text-lg"
                   style={{ color: "#3EB34F" }}
                 >
@@ -423,14 +483,14 @@ export default function HomePage() {
             </div>
 
             {/* アレルゲン情報セクション */}
-            <div 
+            <div
               className="rounded-lg p-6 border-2"
-              style={{ 
+              style={{
                 borderColor: "#3EB34F",
                 backgroundColor: "rgba(62, 179, 79, 0.05)"
               }}
             >
-              <h3 
+              <h3
                 className="font-bold mb-4 text-lg"
                 style={{ color: "#3EB34F" }}
               >
@@ -443,8 +503,8 @@ export default function HomePage() {
                   {haramCheckResult.allergens.found.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {haramCheckResult.allergens.found.map((allergen, idx) => (
-                        <span 
-                          key={idx} 
+                        <span
+                          key={idx}
                           className="text-white px-4 py-2 rounded-full text-sm font-medium shadow"
                           style={{ backgroundColor: "#ff4444" }}
                         >
@@ -462,8 +522,8 @@ export default function HomePage() {
                   {haramCheckResult.allergens.suspect.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {haramCheckResult.allergens.suspect.map((allergen, idx) => (
-                        <span 
-                          key={idx} 
+                        <span
+                          key={idx}
                           className="text-white px-4 py-2 rounded-full text-sm font-medium shadow"
                           style={{ backgroundColor: "#ffaa00" }}
                         >
@@ -487,14 +547,14 @@ export default function HomePage() {
             </div>
 
             {/* 推奨アクション */}
-            <div 
+            <div
               className="rounded-lg p-6 border-2"
-              style={{ 
+              style={{
                 borderColor: "#3EB34F",
                 backgroundColor: "rgba(62, 179, 79, 0.08)"
               }}
             >
-              <h3 
+              <h3
                 className="font-bold mb-4 text-lg"
                 style={{ color: "#3EB34F" }}
               >
@@ -503,7 +563,7 @@ export default function HomePage() {
               <ol className="space-y-3">
                 {haramCheckResult.recommended_next_actions.map((action, idx) => (
                   <li key={idx} className="text-gray-700 flex gap-4">
-                    <span 
+                    <span
                       className="font-bold text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0"
                       style={{ backgroundColor: "#3EB34F" }}
                     >
@@ -574,8 +634,8 @@ export default function HomePage() {
                 {captureStage === "product"
                   ? "商品画像を確認"
                   : captureStage === "ingredients"
-                  ? "成分表示を確認"
-                  : "撮影完了"}
+                    ? "成分表示を確認"
+                    : "撮影完了"}
               </h2>
 
               {/* 完了メッセージ */}
@@ -634,9 +694,10 @@ export default function HomePage() {
                 {captureStage === "completed" ? (
                   <Button
                     onClick={confirmPhotos}
-                    className="bg-green-600 hover:bg-green-700 px-8 py-2"
+                    disabled={isLoading}
+                    className="bg-green-600 hover:bg-green-700 px-8 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    ✓ 確認
+                    {isLoading ? "解析中..." : "✓ 確認"}
                   </Button>
                 ) : (
                   <Button
