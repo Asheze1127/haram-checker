@@ -1,15 +1,49 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// Supabase Auth と連携するユーザー情報
+model UserProfile {
+  id          String   @id @default(uuid())
+  user_id     String   @unique // Supabase auth.users.id に対応
+  email       String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  usageRecords UsageRecord[]
+  userFlags    UserFlag[] // 中間テーブル（ハラル・アレルギーを管理）
+}
+
+// 日ごとの使用回数管理
+model UsageRecord {
+  id        String   @id @default(uuid())
+  userId    String
+  usedAt    DateTime @default(now()) // 利用日時
+  count     Int      @default(1)
+  createdAt DateTime @default(now())
+
+  user UserProfile @relation(fields: [userId], references: [id])
+}
+
+// ハラル・アレルギーの種類マスタ
+model Flag {
+  id        String     @id @default(uuid())
+  name      String     @unique  // 例：「ハラル」「アレルギー」
+  createdAt DateTime   @default(now())
+  userFlags UserFlag[]
+}
+
+// ユーザーとFlagの中間テーブル
+model UserFlag {
+  id      String @id @default(uuid())
+  userId  String
+  flagId  String
+
+  user UserProfile @relation(fields: [userId], references: [id])
+  flag Flag        @relation(fields: [flagId], references: [id])
 }
