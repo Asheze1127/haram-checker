@@ -32,7 +32,10 @@ export async function GET(request: NextRequest) {
     const profile = await prisma.userProfile.upsert({
       where: { id: user.id },
       update: email ? { email } : {},
-      create: { id: user.id, email },
+      create: {
+        id: user.id,
+        ...(email ? { email } : {}),
+      },
     });
 
     const usage = await prisma.usageCount.upsert({
@@ -49,11 +52,15 @@ export async function GET(request: NextRequest) {
       orderBy: { id: "asc" },
     });
 
-    const restrictions = userItems.map((item) => ({
+    const restrictions = userItems.map((item: (typeof userItems)[0]) => ({
       id: item.restrictedItem.id,
       name: item.restrictedItem.name,
       type: item.restrictedItem.type,
     }));
+
+    const preference = await prisma.userPreference.findUnique({
+      where: { userId: profile.id },
+    });
 
     return NextResponse.json({
       user: {
@@ -64,6 +71,12 @@ export async function GET(request: NextRequest) {
         todayCount: usage.total,
       },
       restrictions,
+      preferences: preference
+        ? {
+            wantsHalal: preference.wantsHalal,
+            wantsAllergy: preference.wantsAllergy,
+          }
+        : null,
     });
   } catch (error) {
     console.error("Failed to fetch user info", error);

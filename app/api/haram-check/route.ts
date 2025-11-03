@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ask_gemini } from "@/lib/gemini";
+import { ask_gemini, GeminiLanguage, GeminiPreferences } from "@/lib/gemini";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { image1, image2 } = body;
+    const { image1, image2, language, preferences } = body;
 
     if (!image1 || !image2) {
       return NextResponse.json(
@@ -13,8 +13,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedLanguage: GeminiLanguage =
+      language === "en" ? "en" : "ja";
+
+    const normalizedPreferences: GeminiPreferences = {
+      wantsHalal: preferences?.wantsHalal !== false,
+      wantsAllergy: preferences?.wantsAllergy !== false,
+    };
+
     // Gemini API を呼び出す
-    const result = await ask_gemini(image1, image2);
+    const result = await ask_gemini(image1, image2, {
+      language: normalizedLanguage,
+      preferences: normalizedPreferences,
+    });
 
     return NextResponse.json(result);
   } catch (error) {
@@ -28,4 +39,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

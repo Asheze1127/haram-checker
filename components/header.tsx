@@ -7,11 +7,13 @@ import { clearSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useState } from "react";
 import Image from "next/image";
+import { useTranslate } from "@/hooks/use-translate";
 
 export default function Header() {
   const router = useRouter();
   const { isLoggedIn, userEmail } = useAuthStatus();
   const [navClose, setNavClose] = useState(true);
+  const { t, toggleLanguage } = useTranslate();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -59,6 +61,16 @@ export default function Header() {
           )}
         </div>
       </div>
+      <div className='flex justify-end mt-2'>
+        <button
+          type='button'
+          onClick={toggleLanguage}
+          className='text-sm text-gray-600 hover:text-gray-900 transition-colors'
+          aria-label={t("header.languageToggleAria")}
+        >
+          {t("header.languageToggle")}
+        </button>
+      </div>
       {!navClose && (
         <div
           className='fixed inset-0 bg-black bg-opacity-60 z-10 transition-opacity duration-300 ease-in-out'
@@ -75,7 +87,7 @@ export default function Header() {
           {/* ユーザー情報 */}
           {isLoggedIn && userEmail && (
             <div className='mt-20 mb-6 pb-6 border-b'>
-              <p className='text-sm text-gray-500'>Signed in as</p>
+              <p className='text-sm text-gray-500'>{t("header.signedInAs")}</p>
               <p className='text-sm font-medium truncate'>{userEmail}</p>
             </div>
           )}
@@ -100,7 +112,7 @@ export default function Header() {
                   d='M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'
                 />
               </svg>
-              Home
+              {t("header.home")}
             </Link>
 
             <Link
@@ -127,7 +139,7 @@ export default function Header() {
                   d='M15 12a3 3 0 11-6 0 3 3 0 016 0z'
                 />
               </svg>
-              Settings
+              {t("header.settings")}
             </Link>
 
             {/* 追加のリンクをここに追加できます */}
@@ -149,7 +161,7 @@ export default function Header() {
                   d='M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
                 />
               </svg>
-              About
+              {t("header.about")}
             </Link>
 
             <Link
@@ -170,7 +182,7 @@ export default function Header() {
                   d='M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'
                 />
               </svg>
-              Contact
+              {t("header.contact")}
             </Link>
           </nav>
 
@@ -194,11 +206,11 @@ export default function Header() {
                   <path
                     strokeLinecap='round'
                     strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1'
-                  />
-                </svg>
-                Logout
+                  strokeWidth={2}
+                  d='M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1'
+                />
+              </svg>
+                {t("header.logout")}
               </button>
             ) : (
               <Link
@@ -215,11 +227,11 @@ export default function Header() {
                   <path
                     strokeLinecap='round'
                     strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1'
-                  />
-                </svg>
-                Login
+                  strokeWidth={2}
+                  d='M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1'
+                />
+              </svg>
+                {t("header.login")}
               </Link>
             )}
           </div>

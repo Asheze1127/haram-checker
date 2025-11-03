@@ -5,6 +5,7 @@ import { FirstQuestion } from "@/components/FirstQuestion";
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { AuthGuard } from "@/components/auth-guard";
+import { useTranslate } from "@/hooks/use-translate";
 
 type CaptureStage = "product" | "ingredients" | "completed";
 
@@ -46,6 +47,7 @@ export default function HomePage() {
   const [showResult, setShowResult] = useState<boolean>(false);
   const [haramCheckResult, setHaramCheckResult] = useState<HaramCheckResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { language, t } = useTranslate();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -92,7 +94,7 @@ export default function HomePage() {
   const startCamera = async () => {
     try {
       if (!navigator?.mediaDevices?.getUserMedia) {
-        alert("このブラウザはカメラ機能をサポートしていません。");
+        alert(t("camera.notSupported"));
         return;
       }
 
@@ -180,7 +182,7 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error("Error accessing camera:", error);
-      alert("カメラにアクセスできませんでした。");
+      alert(t("camera.accessDenied"));
     }
   };
 
@@ -314,7 +316,7 @@ export default function HomePage() {
   // ★ 確認ボタン（両画像が保存されている状態）
   const confirmPhotos = async () => {
     if (!productImage?.file || !ingredientsImage?.file) {
-      alert("両方の画像が必要です");
+      alert(t("camera.bothImagesRequired"));
       return;
     }
 
@@ -338,6 +340,7 @@ export default function HomePage() {
         body: JSON.stringify({
           image1: image1Base64,
           image2: image2Base64,
+          language,
         }),
       });
 
@@ -354,7 +357,8 @@ export default function HomePage() {
       setShowResult(true);
     } catch (error) {
       console.error("Error calling API:", error);
-      alert(`エラーが発生しました: ${error instanceof Error ? error.message : "不明なエラー"}`);
+      const errorMessage = error instanceof Error ? error.message : "不明なエラー";
+      alert(`${t("camera.error")} ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -363,9 +367,9 @@ export default function HomePage() {
   // ★ 指示テキストを取得
   const getInstructionText = (): string => {
     if (captureStage === "product") {
-      return "商品画像を撮影してください";
+      return t("camera.instructions.product");
     } else if (captureStage === "ingredients") {
-      return "成分表示を撮影してください";
+      return t("camera.instructions.ingredients");
     }
     return "";
   };
@@ -381,22 +385,28 @@ export default function HomePage() {
     window.location.reload();
   };
 
+  // ★ アレルギー回答ハンドラー
+  const onAllergyAnswer = (answer: "yes" | "no") => {
+    console.log("Allergy answer:", answer);
+    // TODO: アレルギー回答を処理するロジックを実装
+  };
+
   const userInfomation = "";
 
   return (
     <AuthGuard>
       {userInfomation === null ? (
-        <FirstQuestion />
+        <FirstQuestion onAllergyAnswer={onAllergyAnswer} />
       ) : showResult && haramCheckResult ? (
         // ★ ハラル判定結果画面（白基調 + #3EB34F）
-        <div className="w-full min-h-screen bg-white p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
+        <div className="w-full bg-white p-4 sm:p-6">
+          <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
             {/* ヘッダー */}
-            <div className="text-center mb-8 pb-6 border-b-4" style={{ borderColor: "#3EB34F" }}>
-              <h1 className="text-4xl font-bold mb-2" style={{ color: "#3EB34F" }}>
-                判定結果
+            <div className="text-center mb-6 sm:mb-8 pb-4 sm:pb-6 border-b-2 sm:border-b-4" style={{ borderColor: "#3EB34F" }}>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2" style={{ color: "#3EB34F" }}>
+                {t("result.title")}
               </h1>
-              <p className="text-gray-600 text-lg">詳細な分析結果</p>
+              <p className="text-gray-600 text-sm sm:text-base md:text-lg">{t("result.subtitle")}</p>
             </div>
 
             {/* 判定結果セクション */}
@@ -423,11 +433,11 @@ export default function HomePage() {
             </div> */}
 
             {/* 成分情報セクション */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {/* ハラム成分 */}
-              <div className="border-l-4 border-red-500 rounded-lg p-5 bg-red-50">
-                <h3 className="text-red-700 font-bold mb-3 flex items-center gap-2 text-lg">
-                  <span className="text-2xl">✗</span> ハラム成分
+              <div className="border-l-4 border-red-500 rounded-lg p-4 sm:p-5 bg-red-50">
+                <h3 className="text-red-700 font-bold mb-2 sm:mb-3 flex items-center gap-2 text-base sm:text-lg">
+                  <span className="text-xl sm:text-2xl">✗</span> {t("result.ingredients.haram")}
                 </h3>
                 {haramCheckResult.ingredients_flags.haram.length > 0 ? (
                   <ul className="space-y-2">
@@ -436,14 +446,14 @@ export default function HomePage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-gray-500 text-sm">検出されていません</p>
+                  <p className="text-gray-500 text-sm">{t("result.ingredients.notDetected")}</p>
                 )}
               </div>
 
               {/* 疑わしい成分 */}
-              <div className="border-l-4 border-yellow-500 rounded-lg p-5 bg-yellow-50">
-                <h3 className="text-yellow-700 font-bold mb-3 flex items-center gap-2 text-lg">
-                  <span className="text-2xl">!</span> 疑わしい成分
+              <div className="border-l-4 border-yellow-500 rounded-lg p-4 sm:p-5 bg-yellow-50">
+                <h3 className="text-yellow-700 font-bold mb-2 sm:mb-3 flex items-center gap-2 text-base sm:text-lg">
+                  <span className="text-xl sm:text-2xl">!</span> {t("result.ingredients.suspect")}
                 </h3>
                 {haramCheckResult.ingredients_flags.suspect.length > 0 ? (
                   <ul className="space-y-2">
@@ -452,60 +462,60 @@ export default function HomePage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-gray-500 text-sm">検出されていません</p>
+                  <p className="text-gray-500 text-sm">{t("result.ingredients.notDetected")}</p>
                 )}
               </div>
 
               {/* 安全な成分 */}
               <div
-                className="border-l-4 rounded-lg p-5 text-white"
+                className="border-l-4 rounded-lg p-4 sm:p-5 text-white"
                 style={{
                   borderColor: "#3EB34F",
                   backgroundColor: "rgba(62, 179, 79, 0.1)"
                 }}
               >
                 <h3
-                  className="font-bold mb-3 flex items-center gap-2 text-lg"
+                  className="font-bold mb-2 sm:mb-3 flex items-center gap-2 text-base sm:text-lg"
                   style={{ color: "#3EB34F" }}
                 >
-                  <span className="text-2xl">✓</span> 安全な成分
+                  <span className="text-xl sm:text-2xl">✓</span> {t("result.ingredients.safe")}
                 </h3>
                 {haramCheckResult.ingredients_flags.safe.length > 0 ? (
-                  <ul className="space-y-2 max-h-40 overflow-y-auto">
+                  <ul className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto">
                     {haramCheckResult.ingredients_flags.safe.map((item, idx) => (
                       <li key={idx} className="text-gray-700 text-sm">• {item}</li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-gray-500 text-sm">検出されていません</p>
+                  <p className="text-gray-500 text-sm">{t("result.ingredients.notDetected")}</p>
                 )}
               </div>
             </div>
 
             {/* アレルゲン情報セクション */}
             <div
-              className="rounded-lg p-6 border-2"
+              className="rounded-lg p-4 sm:p-6 border-2"
               style={{
                 borderColor: "#3EB34F",
                 backgroundColor: "rgba(62, 179, 79, 0.05)"
               }}
             >
               <h3
-                className="font-bold mb-4 text-lg"
+                className="font-bold mb-3 sm:mb-4 text-base sm:text-lg"
                 style={{ color: "#3EB34F" }}
               >
-                アレルゲン情報
+                {t("result.allergen.title")}
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 {/* 含有アレルゲン */}
                 <div>
-                  <p className="text-gray-700 font-semibold mb-3">含有:</p>
+                  <p className="text-gray-700 font-semibold mb-2 sm:mb-3 text-sm sm:text-base">{t("result.allergen.found")}</p>
                   {haramCheckResult.allergens.found.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {haramCheckResult.allergens.found.map((allergen, idx) => (
                         <span
                           key={idx}
-                          className="text-white px-4 py-2 rounded-full text-sm font-medium shadow"
+                          className="text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium shadow"
                           style={{ backgroundColor: "#ff4444" }}
                         >
                           {allergen}
@@ -513,18 +523,18 @@ export default function HomePage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500 text-sm">なし</p>
+                    <p className="text-gray-500 text-xs sm:text-sm">{t("result.allergen.none")}</p>
                   )}
                 </div>
                 {/* 疑わしいアレルゲン */}
                 <div>
-                  <p className="text-gray-700 font-semibold mb-3">疑わしい:</p>
+                  <p className="text-gray-700 font-semibold mb-2 sm:mb-3 text-sm sm:text-base">{t("result.allergen.suspect")}</p>
                   {haramCheckResult.allergens.suspect.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {haramCheckResult.allergens.suspect.map((allergen, idx) => (
                         <span
                           key={idx}
-                          className="text-white px-4 py-2 rounded-full text-sm font-medium shadow"
+                          className="text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium shadow"
                           style={{ backgroundColor: "#ffaa00" }}
                         >
                           {allergen}
@@ -532,63 +542,63 @@ export default function HomePage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500 text-sm">なし</p>
+                    <p className="text-gray-500 text-xs sm:text-sm">{t("result.allergen.none")}</p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* ユーザー向けメモ */}
-            <div className="bg-gray-50 border-l-4 border-gray-400 rounded-lg p-6">
-              <h3 className="text-gray-800 font-bold mb-4 text-lg"> 詳細情報</h3>
-              <p className="text-gray-700 leading-relaxed">
+            <div className="bg-gray-50 border-l-4 border-gray-400 rounded-lg p-4 sm:p-6">
+              <h3 className="text-gray-800 font-bold mb-3 sm:mb-4 text-base sm:text-lg">{t("result.details.title")}</h3>
+              <p className="text-gray-700 leading-relaxed text-sm sm:text-base">
                 {haramCheckResult.notes_for_user}
               </p>
             </div>
 
             {/* 推奨アクション */}
             <div
-              className="rounded-lg p-6 border-2"
+              className="rounded-lg p-4 sm:p-6 border-2"
               style={{
                 borderColor: "#3EB34F",
                 backgroundColor: "rgba(62, 179, 79, 0.08)"
               }}
             >
               <h3
-                className="font-bold mb-4 text-lg"
+                className="font-bold mb-3 sm:mb-4 text-base sm:text-lg"
                 style={{ color: "#3EB34F" }}
               >
-                推奨アクション
+                {t("result.recommendations.title")}
               </h3>
-              <ol className="space-y-3">
+              <ol className="space-y-2 sm:space-y-3">
                 {haramCheckResult.recommended_next_actions.map((action, idx) => (
-                  <li key={idx} className="text-gray-700 flex gap-4">
+                  <li key={idx} className="text-gray-700 flex gap-2 sm:gap-4">
                     <span
-                      className="font-bold text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0"
+                      className="font-bold text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center flex-shrink-0 text-xs sm:text-sm"
                       style={{ backgroundColor: "#3EB34F" }}
                     >
                       {idx + 1}
                     </span>
-                    <span className="pt-0.5">{action}</span>
+                    <span className="pt-0.5 text-sm sm:text-base">{action}</span>
                   </li>
                 ))}
               </ol>
             </div>
 
             {/* ボタン */}
-            <div className="flex gap-4 justify-center pt-6">
+            <div className="flex gap-3 sm:gap-4 justify-center pt-4 sm:pt-6">
               <Button
                 onClick={goBackToCapture}
-                className="px-8 py-3 text-lg text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-shadow"
+                className="px-6 sm:px-8 py-2.5 sm:py-3 text-base sm:text-lg text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-shadow w-full sm:w-auto"
                 style={{ backgroundColor: "#3EB34F" }}
               >
-                ← 戻る
+                {t("result.back")}
               </Button>
             </div>
           </div>
         </div>
       ) : (
-        <div className="w-full h-screen bg-black flex flex-col relative">
+        <div className="w-full h-[calc(100vh-100px)] bg-black flex flex-col relative">
           {/* カメラビュー */}
           {!showPreview && (
             <>
@@ -602,24 +612,24 @@ export default function HomePage() {
               <canvas ref={canvasRef} className="hidden" />
 
               {/* 上部：指示テキスト */}
-              <div className="absolute top-8 left-0 right-0 flex justify-center">
-                <div className="bg-black bg-opacity-70 px-6 py-3 rounded-lg">
-                  <p className="text-white text-lg font-semibold">
+              <div className="absolute top-4 sm:top-8 left-0 right-0 flex justify-center px-4">
+                <div className="bg-black bg-opacity-70 px-4 sm:px-6 py-2 sm:py-3 rounded-lg max-w-[90%] sm:max-w-none">
+                  <p className="text-white text-sm sm:text-base md:text-lg font-semibold text-center">
                     {getInstructionText()}
                   </p>
-                  <p className="text-gray-300 text-sm mt-1">
+                  <p className="text-gray-300 text-xs sm:text-sm mt-1 text-center">
                     {captureStage === "product"
-                      ? `（1 / 2）`
-                      : `（2 / 2）`}
+                      ? t("camera.step1")
+                      : t("camera.step2")}
                   </p>
                 </div>
               </div>
 
               {/* 下部ボタン */}
-              <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4">
+              <div className="absolute bottom-4 sm:bottom-8 left-0 right-0 flex justify-center gap-4 px-4">
                 <Button
                   onClick={capturePhoto}
-                  className="bg-green-600 hover:bg-green-700 rounded-full w-20 h-20"
+                  className="bg-green-600 hover:bg-green-700 rounded-full w-16 h-16 sm:w-20 sm:h-20 text-2xl sm:text-3xl"
                 >
                   📸
                 </Button>
@@ -629,25 +639,25 @@ export default function HomePage() {
 
           {/* プレビュー画面 */}
           {showPreview && (
-            <div className="w-full h-full flex flex-col items-center justify-center p-4">
-              <h2 className="text-white text-2xl font-bold mb-4">
+            <div className="w-full h-full flex flex-col items-center justify-center p-3 sm:p-4 overflow-y-auto">
+              <h2 className="text-white text-lg sm:text-xl md:text-2xl font-bold mb-3 sm:mb-4 text-center px-2">
                 {captureStage === "product"
-                  ? "商品画像を確認"
+                  ? t("camera.preview.product")
                   : captureStage === "ingredients"
-                    ? "成分表示を確認"
-                    : "撮影完了"}
+                    ? t("camera.preview.ingredients")
+                    : t("camera.preview.completed")}
               </h2>
 
               {/* 完了メッセージ */}
               {captureStage === "completed" && (
-                <div className="bg-green-600 bg-opacity-20 border-2 border-green-500 rounded-lg px-6 py-4 mb-6 text-center">
-                  <p className="text-green-300 text-lg font-semibold">✓ 両画像の撮影が完了しました</p>
+                <div className="bg-green-600 bg-opacity-20 border-2 border-green-500 rounded-lg px-4 sm:px-6 py-3 sm:py-4 mb-4 sm:mb-6 text-center mx-4">
+                  <p className="text-green-300 text-sm sm:text-base md:text-lg font-semibold">{t("camera.preview.allCompleted")}</p>
                 </div>
               )}
 
               {/* 現在の画像プレビュー */}
               {captureStage === "product" && productImage ? (
-                <div className="relative w-full max-w-md h-96 bg-gray-900 rounded-lg overflow-hidden mb-6">
+                <div className="relative w-full max-w-xs sm:max-w-md h-64 sm:h-80 md:h-96 bg-gray-900 rounded-lg overflow-hidden mb-4 sm:mb-6">
                   <Image
                     src={productImage.url}
                     alt="Captured Photo"
@@ -656,7 +666,7 @@ export default function HomePage() {
                   />
                 </div>
               ) : captureStage === "ingredients" && ingredientsImage ? (
-                <div className="relative w-full max-w-md h-96 bg-gray-900 rounded-lg overflow-hidden mb-6">
+                <div className="relative w-full max-w-xs sm:max-w-md h-64 sm:h-80 md:h-96 bg-gray-900 rounded-lg overflow-hidden mb-4 sm:mb-6">
                   <Image
                     src={ingredientsImage.url}
                     alt="Captured Photo"
@@ -668,11 +678,11 @@ export default function HomePage() {
 
               {/* 前の画像が保存されている場合、プレビュー表示 */}
               {captureStage === "ingredients" && productImage && (
-                <div className="mb-6 text-center">
-                  <p className="text-gray-300 text-sm mb-2">
-                    撮影済み：商品画像
+                <div className="mb-4 sm:mb-6 text-center">
+                  <p className="text-gray-300 text-xs sm:text-sm mb-2">
+                    {t("camera.preview.capturedProduct")}
                   </p>
-                  <div className="relative w-32 h-32 bg-gray-800 rounded overflow-hidden mx-auto">
+                  <div className="relative w-24 h-24 sm:w-32 sm:h-32 bg-gray-800 rounded overflow-hidden mx-auto">
                     <Image
                       src={productImage.url}
                       alt="Product Image"
@@ -684,27 +694,27 @@ export default function HomePage() {
               )}
 
               {/* ボタン */}
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full max-w-md px-4">
                 <Button
                   onClick={retakePhoto}
-                  className="bg-blue-600 hover:bg-blue-700 px-8 py-2"
+                  className="bg-blue-600 hover:bg-blue-700 px-6 sm:px-8 py-2.5 sm:py-2 text-sm sm:text-base w-full sm:w-auto"
                 >
-                  🔄 再撮影
+                  {t("camera.retake")}
                 </Button>
                 {captureStage === "completed" ? (
                   <Button
                     onClick={confirmPhotos}
                     disabled={isLoading}
-                    className="bg-green-600 hover:bg-green-700 px-8 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-green-600 hover:bg-green-700 px-6 sm:px-8 py-2.5 sm:py-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base w-full sm:w-auto"
                   >
-                    {isLoading ? "解析中..." : "✓ 確認"}
+                    {isLoading ? t("camera.analyzing") : t("camera.confirm")}
                   </Button>
                 ) : (
                   <Button
                     onClick={proceedToNext}
-                    className="bg-yellow-600 hover:bg-yellow-700 px-8 py-2"
+                    className="bg-yellow-600 hover:bg-yellow-700 px-6 sm:px-8 py-2.5 sm:py-2 text-sm sm:text-base w-full sm:w-auto"
                   >
-                    → 次へ
+                    {t("camera.next")}
                   </Button>
                 )}
               </div>

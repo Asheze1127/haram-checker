@@ -9,36 +9,50 @@ datasource db {
 
 // Supabase Auth と連携するユーザー情報
 model UserProfile {
-  id          String   @id @default(uuid())
-  user_id     String   @unique // Supabase auth.users.id に対応
-  email       String   @unique
+  id          String   @id // Supabase auth.users.id に対応
+  email       String?  @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  usageRecords UsageRecord[]
-  userFlags    UserFlag[] // 中間テーブル（ハラル・アレルギーを管理）
+  usageCount  UsageCount?
+  userItems   UserItem[]
+  userFlags   UserFlag[] // 互換性維持
+  preference  UserPreference?
 }
 
 // 日ごとの使用回数管理
-model UsageRecord {
+model UsageCount {
   id        String   @id @default(uuid())
-  userId    String
-  usedAt    DateTime @default(now()) // 利用日時
-  count     Int      @default(1)
+  userId    String   @unique
+  total     Int      @default(0)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user UserProfile @relation(fields: [userId], references: [id])
 }
 
-// ハラル・アレルギーの種類マスタ
-model Flag {
-  id        String     @id @default(uuid())
-  name      String     @unique  // 例：「ハラル」「アレルギー」
-  createdAt DateTime   @default(now())
-  userFlags UserFlag[]
+// 制限対象のマスタ（アレルギー・ハラルなど）
+model RestrictedItem {
+  id        String   @id @default(uuid())
+  name      String
+  type      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userItems UserItem[]
 }
 
-// ユーザーとFlagの中間テーブル
+// ユーザーごとの制限設定
+model UserItem {
+  id               String         @id @default(uuid())
+  userId           String
+  restrictedItemId String
+
+  user           UserProfile    @relation(fields: [userId], references: [id])
+  restrictedItem RestrictedItem @relation(fields: [restrictedItemId], references: [id])
+}
+
+// ユーザーとFlagの中間テーブル（旧構成と互換性のため保持）
 model UserFlag {
   id      String @id @default(uuid())
   userId  String
@@ -46,4 +60,24 @@ model UserFlag {
 
   user UserProfile @relation(fields: [userId], references: [id])
   flag Flag        @relation(fields: [flagId], references: [id])
+}
+
+// ハラル・アレルギーの種類マスタ（旧構成と互換性のため保持）
+model Flag {
+  id        String     @id @default(uuid())
+  name      String     @unique  // 例：「ハラル」「アレルギー」
+  createdAt DateTime   @default(now())
+  userFlags UserFlag[]
+}
+
+// ユーザープリファレンス（表示制御用）
+model UserPreference {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  wantsHalal   Boolean  @default(true)
+  wantsAllergy Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user UserProfile @relation(fields: [userId], references: [id])
 }

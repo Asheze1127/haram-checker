@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/header";
+import { TranslationProvider } from "@/hooks/use-translate";
 
 export const metadata: Metadata = {
   title: "Haram Checker",
@@ -15,8 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-background font-sans antialiased">
-        <Header />
-        <main>{children}</main>
+        <TranslationProvider>
+          <Header />
+          <main>{children}</main>
+        </TranslationProvider>
       </body>
     </html>
   );
