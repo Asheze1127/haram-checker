@@ -71,6 +71,12 @@ export const ask_gemini = async (image1: string, image2: string): Promise<Gemini
     * 食品表示解析（あれば）
         → label_text を優先解析。
         → 原材料・アレルギー・認証を抽出。
+    * 包装商品の特別処理
+        → 包装されている商品（おかし、菓子、加工食品など）で、ラベルや原材料表示が不十分な場合
+        → 商品名、ブランド名、パッケージデザインなどを特定
+        → ウェブ検索や商品データベースを活用して、その商品の一般的な原材料・成分情報を調査
+        → 調査結果に基づいて推測判定を行う（推測であることを根拠に明記）
+        → 信頼度は推測であることを考慮して適切に設定
     * ハラル認証チェック
         → 確実な認証があれば "HALAL"、不明なら次工程へ。
     * ハラム要素・疑わしい成分チェック
@@ -112,7 +118,14 @@ export const ask_gemini = async (image1: string, image2: string): Promise<Gemini
     
     あなたはハラル・アレルギー判定アシスタントです。
     提供された画像とテキストをもとに、上記ルール・フローに従い厳格に判定してください。
-    過剰な推定をせず、確証がなければ "UNKNOWN" を返すこと。
+    
+    特に、包装されている商品（おかし、菓子、加工食品など）の場合：
+    * ラベルや原材料表示が見えない、または不完全な場合は、商品名やブランド名を特定し、ウェブ検索や商品データベースを活用して一般的な原材料情報を調査してください。
+    * 調査結果に基づいて推測判定を行い、推測であることを根拠(evidence)に明記してください。
+    * 推測による判定である場合は、信頼度(confidence)を適切に設定し、notes_for_userに「推測による判定」である旨を記載してください。
+    
+    画像やラベルから明確な情報が得られる場合は、過剰な推定をせず確証に基づいて判定してください。
+    確証がなければ "UNKNOWN" を返すこと。
     返す値はJsonだけにするようにしてください。
     `;
 
@@ -129,29 +142,65 @@ export const ask_gemini = async (image1: string, image2: string): Promise<Gemini
     const image1Data = formatImageData(image1);
     const image2Data = formatImageData(image2);
 
-    const requestBody = {
-        contents: [{
-            parts: [
-                {
-                    text: PROMPT
-                },
-                {
-                    inline_data: {
-                        mime_type: "image/jpeg",
-                        data: image1Data
-                    }
-                },
-                {
-                    inline_data: {
-                        mime_type: "image/jpeg",
-                        data: image2Data
-                    }
-                }
-            ]
-        }]
+    // base64データのサイズを確認（デバッグ用）
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[Gemini] Image1 data length: ${image1Data.length} chars`);
+        console.log(`[Gemini] Image2 data length: ${image2Data.length} chars`);
+    }
+
+    // MIMEタイプを推測（デフォルトはimage/jpeg、必要に応じて拡張可能）
+    const getMimeType = (base64Data: string): string => {
+        // base64の先頭数バイトで画像形式を判定
+        // 簡易的な判定（より正確にはファイル拡張子やマジックナンバーを使用）
+        if (base64Data.startsWith('/9j/') || base64Data.startsWith('/9j/4AAQ')) {
+            return 'image/jpeg';
+        } else if (base64Data.startsWith('iVBORw0KGgo')) {
+            return 'image/png';
+        } else if (base64Data.startsWith('R0lGODlh') || base64Data.startsWith('R0lGODdh')) {
+            return 'image/gif';
+        } else if (base64Data.startsWith('UklGR')) {
+            return 'image/webp';
+        }
+        // デフォルトはJPEG
+        return 'image/jpeg';
     };
 
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyA8eFwE1o5Td695vQ99KdXDc81CvUqk1Ek', {
+    const mimeType1 = getMimeType(image1Data);
+    const mimeType2 = getMimeType(image2Data);
+
+    const requestBody = {
+        contents: [
+            {
+                role: 'user',
+                parts: [
+                    {
+                        text: PROMPT
+                    },
+                    {
+                        inlineData: {
+                            mimeType: mimeType1,
+                            data: image1Data
+                        }
+                    },
+                    {
+                        inlineData: {
+                            mimeType: mimeType2,
+                            data: image2Data
+                        }
+                    }
+                ]
+            }
+        ]
+    };
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error('GEMINI_API_KEY is not set in environment variables');
+    }
+
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+    const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -160,7 +209,15 @@ export const ask_gemini = async (image1: string, image2: string): Promise<Gemini
     });
 
     if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        // エラーレスポンスの詳細を取得
+        let errorDetail = '';
+        try {
+            const errorData = await response.json();
+            errorDetail = JSON.stringify(errorData, null, 2);
+        } catch (e) {
+            errorDetail = await response.text();
+        }
+        throw new Error(`Gemini API error: ${response.status} ${response.statusText}\nResponse: ${errorDetail}`);
     }
 
     const data = await response.json();
