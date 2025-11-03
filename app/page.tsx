@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { AuthGuard } from "@/components/auth-guard";
 import { useTranslate } from "@/hooks/use-translate";
+import { supabase } from "@/lib/supabase";
 
 type CaptureStage = "product" | "ingredients" | "completed";
 
@@ -47,6 +48,7 @@ export default function HomePage() {
   const [showResult, setShowResult] = useState<boolean>(false);
   const [haramCheckResult, setHaramCheckResult] = useState<HaramCheckResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [userPreferences, setUserPreferences] = useState<{ wantsHalal: boolean; wantsAllergy: boolean } | null | "loading">("loading");
   const { language, t } = useTranslate();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -186,12 +188,43 @@ export default function HomePage() {
     }
   };
 
+  // ★ ユーザー情報とpreferencesを取得
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          setUserPreferences(null);
+          return;
+        }
+
+        const response = await fetch("/api/user-info", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUserPreferences(data.preferences);
+        } else {
+          setUserPreferences(null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user info", error);
+        setUserPreferences(null);
+      }
+    };
+
+    fetchUserInfo();
+  }, []);
+
   // ★ 初期化：マウント時のみカメラを起動
   useEffect(() => {
     let isComponentMounted = true;
 
     const doInit = async () => {
-      if (isComponentMounted) {
+      if (isComponentMounted && userPreferences !== "loading" && userPreferences !== null) {
         await startCamera();
       }
     };
@@ -206,7 +239,7 @@ export default function HomePage() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [userPreferences]);
 
   // ★ 写真キャプチャ + 自動保存 + 次の段階へ進む
   const capturePhoto = () => {
@@ -386,16 +419,49 @@ export default function HomePage() {
   };
 
   // ★ アレルギー回答ハンドラー
-  const onAllergyAnswer = (answer: "yes" | "no") => {
-    console.log("Allergy answer:", answer);
-    // TODO: アレルギー回答を処理するロジックを実装
-  };
+  const onAllergyAnswer = async (answer: "yes" | "no") => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.error("No access token");
+        return;
+      }
 
-  const userInfomation = "";
+      // 規約同意 = wantsHalal: true、アレルギーyes = wantsAllergy: true、no = false
+      const wantsAllergy = answer === "yes";
+
+      const response = await fetch("/api/preferences", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          wantsHalal: true, // 規約同意した = ハラルチェックに同意
+          wantsAllergy: wantsAllergy,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserPreferences(data);
+        // カメラを起動
+        await startCamera();
+      } else {
+        console.error("Failed to save preferences");
+      }
+    } catch (error) {
+      console.error("Error saving preferences", error);
+    }
+  };
 
   return (
     <AuthGuard>
-      {userInfomation === null ? (
+      {userPreferences === "loading" ? (
+        <div className="flex items-center justify-center min-h-[calc(100vh-100px)]">
+          <p className="text-gray-600">{t("loading") || "読み込み中..."}</p>
+        </div>
+      ) : userPreferences === null ? (
         <FirstQuestion onAllergyAnswer={onAllergyAnswer} />
       ) : showResult && haramCheckResult ? (
         // ★ ハラル判定結果画面（白基調 + #3EB34F）
@@ -432,121 +498,125 @@ export default function HomePage() {
               </div>
             </div> */}
 
-            {/* 成分情報セクション */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {/* ハラム成分 */}
-              <div className="border-l-4 border-red-500 rounded-lg p-4 sm:p-5 bg-red-50">
-                <h3 className="text-red-700 font-bold mb-2 sm:mb-3 flex items-center gap-2 text-base sm:text-lg">
-                  <span className="text-xl sm:text-2xl">✗</span> {t("result.ingredients.haram")}
-                </h3>
-                {haramCheckResult.ingredients_flags.haram.length > 0 ? (
-                  <ul className="space-y-2">
-                    {haramCheckResult.ingredients_flags.haram.map((item, idx) => (
-                      <li key={idx} className="text-red-700 text-sm">• {item}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-500 text-sm">{t("result.ingredients.notDetected")}</p>
-                )}
-              </div>
+            {/* 成分情報セクション（wantsHalalがtrueの場合のみ表示） */}
+            {userPreferences && userPreferences.wantsHalal && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {/* ハラム成分 */}
+                <div className="border-l-4 border-red-500 rounded-lg p-4 sm:p-5 bg-red-50">
+                  <h3 className="text-red-700 font-bold mb-2 sm:mb-3 flex items-center gap-2 text-base sm:text-lg">
+                    <span className="text-xl sm:text-2xl">✗</span> {t("result.ingredients.haram")}
+                  </h3>
+                  {haramCheckResult.ingredients_flags.haram.length > 0 ? (
+                    <ul className="space-y-2">
+                      {haramCheckResult.ingredients_flags.haram.map((item, idx) => (
+                        <li key={idx} className="text-red-700 text-sm">• {item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500 text-sm">{t("result.ingredients.notDetected")}</p>
+                  )}
+                </div>
 
-              {/* 疑わしい成分 */}
-              <div className="border-l-4 border-yellow-500 rounded-lg p-4 sm:p-5 bg-yellow-50">
-                <h3 className="text-yellow-700 font-bold mb-2 sm:mb-3 flex items-center gap-2 text-base sm:text-lg">
-                  <span className="text-xl sm:text-2xl">!</span> {t("result.ingredients.suspect")}
-                </h3>
-                {haramCheckResult.ingredients_flags.suspect.length > 0 ? (
-                  <ul className="space-y-2">
-                    {haramCheckResult.ingredients_flags.suspect.map((item, idx) => (
-                      <li key={idx} className="text-yellow-700 text-sm">• {item}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-500 text-sm">{t("result.ingredients.notDetected")}</p>
-                )}
-              </div>
+                {/* 疑わしい成分 */}
+                <div className="border-l-4 border-yellow-500 rounded-lg p-4 sm:p-5 bg-yellow-50">
+                  <h3 className="text-yellow-700 font-bold mb-2 sm:mb-3 flex items-center gap-2 text-base sm:text-lg">
+                    <span className="text-xl sm:text-2xl">!</span> {t("result.ingredients.suspect")}
+                  </h3>
+                  {haramCheckResult.ingredients_flags.suspect.length > 0 ? (
+                    <ul className="space-y-2">
+                      {haramCheckResult.ingredients_flags.suspect.map((item, idx) => (
+                        <li key={idx} className="text-yellow-700 text-sm">• {item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500 text-sm">{t("result.ingredients.notDetected")}</p>
+                  )}
+                </div>
 
-              {/* 安全な成分 */}
+                {/* 安全な成分 */}
+                <div
+                  className="border-l-4 rounded-lg p-4 sm:p-5 text-white"
+                  style={{
+                    borderColor: "#3EB34F",
+                    backgroundColor: "rgba(62, 179, 79, 0.1)"
+                  }}
+                >
+                  <h3
+                    className="font-bold mb-2 sm:mb-3 flex items-center gap-2 text-base sm:text-lg"
+                    style={{ color: "#3EB34F" }}
+                  >
+                    <span className="text-xl sm:text-2xl">✓</span> {t("result.ingredients.safe")}
+                  </h3>
+                  {haramCheckResult.ingredients_flags.safe.length > 0 ? (
+                    <ul className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto">
+                      {haramCheckResult.ingredients_flags.safe.map((item, idx) => (
+                        <li key={idx} className="text-gray-700 text-sm">• {item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500 text-sm">{t("result.ingredients.notDetected")}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* アレルゲン情報セクション（wantsAllergyがtrueの場合のみ表示） */}
+            {userPreferences && userPreferences.wantsAllergy && (
               <div
-                className="border-l-4 rounded-lg p-4 sm:p-5 text-white"
+                className="rounded-lg p-4 sm:p-6 border-2"
                 style={{
                   borderColor: "#3EB34F",
-                  backgroundColor: "rgba(62, 179, 79, 0.1)"
+                  backgroundColor: "rgba(62, 179, 79, 0.05)"
                 }}
               >
                 <h3
-                  className="font-bold mb-2 sm:mb-3 flex items-center gap-2 text-base sm:text-lg"
+                  className="font-bold mb-3 sm:mb-4 text-base sm:text-lg"
                   style={{ color: "#3EB34F" }}
                 >
-                  <span className="text-xl sm:text-2xl">✓</span> {t("result.ingredients.safe")}
+                  {t("result.allergen.title")}
                 </h3>
-                {haramCheckResult.ingredients_flags.safe.length > 0 ? (
-                  <ul className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto">
-                    {haramCheckResult.ingredients_flags.safe.map((item, idx) => (
-                      <li key={idx} className="text-gray-700 text-sm">• {item}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-500 text-sm">{t("result.ingredients.notDetected")}</p>
-                )}
-              </div>
-            </div>
-
-            {/* アレルゲン情報セクション */}
-            <div
-              className="rounded-lg p-4 sm:p-6 border-2"
-              style={{
-                borderColor: "#3EB34F",
-                backgroundColor: "rgba(62, 179, 79, 0.05)"
-              }}
-            >
-              <h3
-                className="font-bold mb-3 sm:mb-4 text-base sm:text-lg"
-                style={{ color: "#3EB34F" }}
-              >
-                {t("result.allergen.title")}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                {/* 含有アレルゲン */}
-                <div>
-                  <p className="text-gray-700 font-semibold mb-2 sm:mb-3 text-sm sm:text-base">{t("result.allergen.found")}</p>
-                  {haramCheckResult.allergens.found.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {haramCheckResult.allergens.found.map((allergen, idx) => (
-                        <span
-                          key={idx}
-                          className="text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium shadow"
-                          style={{ backgroundColor: "#ff4444" }}
-                        >
-                          {allergen}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 text-xs sm:text-sm">{t("result.allergen.none")}</p>
-                  )}
-                </div>
-                {/* 疑わしいアレルゲン */}
-                <div>
-                  <p className="text-gray-700 font-semibold mb-2 sm:mb-3 text-sm sm:text-base">{t("result.allergen.suspect")}</p>
-                  {haramCheckResult.allergens.suspect.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {haramCheckResult.allergens.suspect.map((allergen, idx) => (
-                        <span
-                          key={idx}
-                          className="text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium shadow"
-                          style={{ backgroundColor: "#ffaa00" }}
-                        >
-                          {allergen}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 text-xs sm:text-sm">{t("result.allergen.none")}</p>
-                  )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  {/* 含有アレルゲン */}
+                  <div>
+                    <p className="text-gray-700 font-semibold mb-2 sm:mb-3 text-sm sm:text-base">{t("result.allergen.found")}</p>
+                    {haramCheckResult.allergens.found.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {haramCheckResult.allergens.found.map((allergen, idx) => (
+                          <span
+                            key={idx}
+                            className="text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium shadow"
+                            style={{ backgroundColor: "#ff4444" }}
+                          >
+                            {allergen}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-xs sm:text-sm">{t("result.allergen.none")}</p>
+                    )}
+                  </div>
+                  {/* 疑わしいアレルゲン */}
+                  <div>
+                    <p className="text-gray-700 font-semibold mb-2 sm:mb-3 text-sm sm:text-base">{t("result.allergen.suspect")}</p>
+                    {haramCheckResult.allergens.suspect.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {haramCheckResult.allergens.suspect.map((allergen, idx) => (
+                          <span
+                            key={idx}
+                            className="text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium shadow"
+                            style={{ backgroundColor: "#ffaa00" }}
+                          >
+                            {allergen}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-xs sm:text-sm">{t("result.allergen.none")}</p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* ユーザー向けメモ */}
             <div className="bg-gray-50 border-l-4 border-gray-400 rounded-lg p-4 sm:p-6">
