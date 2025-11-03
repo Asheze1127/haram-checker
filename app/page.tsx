@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
+import { AuthGuard } from "@/components/auth-guard";
 
 export default function HomePage() {
   const [productImage, setProductImage] = useState<File | null>(null);
@@ -51,12 +52,13 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen p-4">
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-2xl">Haram & Allergen Checker</CardTitle>
-          <CardDescription>
-            Upload a photo of the product and its ingredients list.
+    <AuthGuard>
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <Card className="w-full max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-2xl">Haram & Allergen Checker</CardTitle>
+            <CardDescription>
+              Upload a photo of the product and its ingredients list.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -92,6 +94,7 @@ export default function HomePage() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </AuthGuard>
   );
 }

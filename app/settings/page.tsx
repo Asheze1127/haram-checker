@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { AuthGuard } from "@/components/auth-guard";
 
 const allergens = [
   { id: "peanuts", label: "Peanuts" },
@@ -41,12 +42,13 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Allergy Settings</CardTitle>
-          <CardDescription>
-            Select your allergies to get personalized results.
+    <AuthGuard>
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Allergy Settings</CardTitle>
+            <CardDescription>
+              Select your allergies to get personalized results.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -72,6 +74,7 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </AuthGuard>
   );
 }
