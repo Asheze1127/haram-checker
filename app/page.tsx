@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FirstQuestion } from "@/components/FirstQuestion";
 import {
   Card,
   CardContent,
@@ -46,55 +47,87 @@ export default function HomePage() {
     // This is where you would call the Gemini API.
     // For now, we'll just simulate a delay and a mock response.
     setTimeout(() => {
-      setResult("Mock analysis result: This product appears to be Halal. No allergens found based on your profile.");
+      setResult(
+        "Mock analysis result: This product appears to be Halal. No allergens found based on your profile."
+      );
       setIsLoading(false);
     }, 2000);
   };
 
+  const userInfomation = null;
+
   return (
     <AuthGuard>
-      <div className="flex items-center justify-center min-h-screen p-4">
-        <Card className="w-full max-w-2xl">
-          <CardHeader>
-            <CardTitle className="text-2xl">Haram & Allergen Checker</CardTitle>
-            <CardDescription>
-              Upload a photo of the product and its ingredients list.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="grid gap-3">
-              <Label htmlFor="product-image">Product Image</Label>
-              <Input id="product-image" type="file" onChange={handleProductImageChange} />
-              {productImage && (
-                <div className="mt-2 relative w-full h-48">
-                    <Image src={URL.createObjectURL(productImage)} alt="Product Preview" layout="fill" objectFit="contain" />
+      {userInfomation === null ? (
+        <FirstQuestion />
+      ) : (
+        <div className='flex items-center justify-center min-h-screen p-4'>
+          <Card className='w-full max-w-2xl'>
+            <CardHeader>
+              <CardTitle className='text-2xl'>
+                Haram & Allergen Checker
+              </CardTitle>
+              <CardDescription>
+                Upload a photo of the product and its ingredients list.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className='grid md:grid-cols-2 gap-6'>
+                <div className='grid gap-3'>
+                  <Label htmlFor='product-image'>Product Image</Label>
+                  <Input
+                    id='product-image'
+                    type='file'
+                    onChange={handleProductImageChange}
+                  />
+                  {productImage && (
+                    <div className='mt-2 relative w-full h-48'>
+                      <Image
+                        src={URL.createObjectURL(productImage)}
+                        alt='Product Preview'
+                        layout='fill'
+                        objectFit='contain'
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className='grid gap-3'>
+                  <Label htmlFor='ingredients-image'>Ingredients Image</Label>
+                  <Input
+                    id='ingredients-image'
+                    type='file'
+                    onChange={handleIngredientsImageChange}
+                  />
+                  {ingredientsImage && (
+                    <div className='mt-2 relative w-full h-48'>
+                      <Image
+                        src={URL.createObjectURL(ingredientsImage)}
+                        alt='Ingredients Preview'
+                        layout='fill'
+                        objectFit='contain'
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+              <Separator className='my-6' />
+              <Button
+                onClick={handleSubmit}
+                className='w-full'
+                disabled={isLoading}
+              >
+                {isLoading ? "Analyzing..." : "Check Product"}
+              </Button>
+              {result && (
+                <div className='mt-6 p-4 bg-muted rounded-lg'>
+                  <h3 className='font-semibold'>Analysis Result:</h3>
+                  <p className='text-sm'>{result}</p>
                 </div>
               )}
-            </div>
-            <div className="grid gap-3">
-              <Label htmlFor="ingredients-image">Ingredients Image</Label>
-              <Input id="ingredients-image" type="file" onChange={handleIngredientsImageChange} />
-               {ingredientsImage && (
-                <div className="mt-2 relative w-full h-48">
-                    <Image src={URL.createObjectURL(ingredientsImage)} alt="Ingredients Preview" layout="fill" objectFit="contain" />
-                </div>
-              )}
-            </div>
-          </div>
-          <Separator className="my-6" />
-          <Button onClick={handleSubmit} className="w-full" disabled={isLoading}>
-            {isLoading ? "Analyzing..." : "Check Product"}
-          </Button>
-          {result && (
-            <div className="mt-6 p-4 bg-muted rounded-lg">
-              <h3 className="font-semibold">Analysis Result:</h3>
-              <p className="text-sm">{result}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </AuthGuard>
   );
 }
