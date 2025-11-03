@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStatus } from "@/hooks/use-auth-status";
+import { authenticateUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,37 +15,35 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isLoggedIn } = useAuthStatus();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [passwordConf, setPasswordConf] = useState("")
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (isLoggedIn) {
-      router.replace("/");
-    }
-  }, [isLoggedIn, router]);
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (!email || !password) {
-      setError("Please enter your email and password.");
-      return;
-    }
-
+  const onLogin = async(e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     setError(null);
     setIsSubmitting(true);
-
-    window.localStorage.setItem("isLoggedIn", "true");
-    window.localStorage.setItem("userEmail", email);
-    window.dispatchEvent(new Event("authchange"));
-    router.replace("/");
-  };
+    try{
+      const { error:signInError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      })
+      if (signInError) {
+        throw signInError;
+      }
+      await router.push("/");
+    }catch(error: any){
+      setError(error.message || "エラーが発生しました");
+      setIsSubmitting(false);
+      alert('エラーが発生しました');
+    }
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen">
@@ -56,7 +55,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-4" onSubmit={handleSubmit}>
+          <form className="grid gap-4" onSubmit={onLogin}>
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -90,7 +89,7 @@ export default function LoginPage() {
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{" "}
+            Don't have an account?{" "}
             <Link href="/signup" className="underline">
               Sign up
             </Link>
