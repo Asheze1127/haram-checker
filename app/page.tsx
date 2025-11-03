@@ -1,65 +1,97 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
 
-export default function Home() {
+export default function HomePage() {
+  const [productImage, setProductImage] = useState<File | null>(null);
+  const [ingredientsImage, setIngredientsImage] = useState<File | null>(null);
+  const [result, setResult] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const handleProductImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setProductImage(e.target.files[0]);
+    }
+  };
+
+  const handleIngredientsImageChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (e.target.files) {
+      setIngredientsImage(e.target.files[0]);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!productImage || !ingredientsImage) {
+      alert("Please upload both images.");
+      return;
+    }
+    setIsLoading(true);
+    setResult("Analyzing...");
+
+    // This is where you would call the Gemini API.
+    // For now, we'll just simulate a delay and a mock response.
+    setTimeout(() => {
+      setResult("Mock analysis result: This product appears to be Halal. No allergens found based on your profile.");
+      setIsLoading(false);
+    }, 2000);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="flex items-center justify-center min-h-screen p-4">
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-2xl">Haram & Allergen Checker</CardTitle>
+          <CardDescription>
+            Upload a photo of the product and its ingredients list.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid gap-3">
+              <Label htmlFor="product-image">Product Image</Label>
+              <Input id="product-image" type="file" onChange={handleProductImageChange} />
+              {productImage && (
+                <div className="mt-2 relative w-full h-48">
+                    <Image src={URL.createObjectURL(productImage)} alt="Product Preview" layout="fill" objectFit="contain" />
+                </div>
+              )}
+            </div>
+            <div className="grid gap-3">
+              <Label htmlFor="ingredients-image">Ingredients Image</Label>
+              <Input id="ingredients-image" type="file" onChange={handleIngredientsImageChange} />
+               {ingredientsImage && (
+                <div className="mt-2 relative w-full h-48">
+                    <Image src={URL.createObjectURL(ingredientsImage)} alt="Ingredients Preview" layout="fill" objectFit="contain" />
+                </div>
+              )}
+            </div>
+          </div>
+          <Separator className="my-6" />
+          <Button onClick={handleSubmit} className="w-full" disabled={isLoading}>
+            {isLoading ? "Analyzing..." : "Check Product"}
+          </Button>
+          {result && (
+            <div className="mt-6 p-4 bg-muted rounded-lg">
+              <h3 className="font-semibold">Analysis Result:</h3>
+              <p className="text-sm">{result}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
