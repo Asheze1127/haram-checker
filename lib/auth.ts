@@ -51,7 +51,7 @@ export function registerUser(user: StoredUser) {
   }
 
   persistUsers([...users, user]);
-  startSession(user);
+  startSession(user.email);
   return { success: true as const };
 }
 
@@ -69,14 +69,14 @@ export function authenticateUser(email: string, password: string) {
     return { success: false, error: "Invalid email or password." as const };
   }
 
-  startSession(matchedUser);
+  startSession(matchedUser.email);
   return { success: true as const, user: matchedUser };
 }
 
-export function startSession(user: StoredUser) {
+export function startSession(email: string) {
   ensureBrowser();
   window.localStorage.setItem(LOGGED_IN_KEY, "true");
-  window.localStorage.setItem(EMAIL_KEY, user.email);
+  window.localStorage.setItem(EMAIL_KEY, email);
   window.dispatchEvent(new Event("authchange"));
 }
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { use, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FirstQuestion } from "@/components/FirstQuestion";
 import {
@@ -25,13 +24,11 @@ export default function HomePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // ★ カメラストリームをビデオ要素に接続する（useEffect で実行）
   useEffect(() => {
     if (pendingStream && videoRef.current) {
       videoRef.current.srcObject = pendingStream;
       streamRef.current = pendingStream;
 
-      // ビデオ要素の再生準備ができたら再生を開始
       videoRef.current.onloadedmetadata = () => {
         if (videoRef.current) {
           videoRef.current.play().catch((err) => {
@@ -40,7 +37,6 @@ export default function HomePage() {
         }
       };
 
-      // フォールバック：メタデータがすぐに読み込まれない場合
       setTimeout(() => {
         if (videoRef.current && videoRef.current.readyState >= 1) {
           videoRef.current.play().catch((err) => {
@@ -51,10 +47,8 @@ export default function HomePage() {
     }
   }, [pendingStream]);
 
-  // ★ ユーザー操作イベント（ボタンクリック）からのみカメラを起動
   const startCamera = useCallback(async () => {
     try {
-      // ブラウザ環境でのみ実行
       if (!navigator?.mediaDevices?.getUserMedia) {
         alert("このブラウザはカメラ機能をサポートしていません。");
         return;
@@ -68,7 +62,6 @@ export default function HomePage() {
         },
       });
 
-      // ★ ストリームを pendingStream に設定（useEffect で自動的に接続）
       setPendingStream(stream);
     } catch (error) {
       console.error("Error accessing camera:", error);
@@ -86,7 +79,6 @@ export default function HomePage() {
     }
   }, []);
 
-  // ★ コンポーネントマウント時に自動でカメラを起動
   useEffect(() => {
     let isComponentMounted = true;
 
@@ -98,7 +90,6 @@ export default function HomePage() {
 
     initCamera();
 
-    // クリーンアップ：コンポーネントアンマウント時にカメラを停止
     return () => {
       isComponentMounted = false;
       stopCamera();

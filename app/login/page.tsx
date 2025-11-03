@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStatus } from "@/hooks/use-auth-status";
-import { authenticateUser } from "@/lib/auth";
+import { startSession } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,31 +19,42 @@ import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [passwordConf, setPasswordConf] = useState("")
+  const { isLoggedIn } = useAuthStatus();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const onLogin = async(e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (isLoggedIn) {
+      router.replace("/");
+    }
+  }, [isLoggedIn, router]);
+
+  const onLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError(null);
     setIsSubmitting(true);
-    try{
-      const { error:signInError } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      })
+
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
       if (signInError) {
         throw signInError;
       }
-      await router.push("/");
-    }catch(error: any){
-      setError(error.message || "エラーが発生しました");
+
+      startSession(email.trim());
+      router.replace("/");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "ログイン中にエラーが発生しました。";
+      setError(message);
       setIsSubmitting(false);
-      alert('エラーが発生しました');
     }
-  }
+  };
 
   return (
     <div className="flex items-center justify-center min-h-screen">
@@ -89,7 +100,7 @@ export default function LoginPage() {
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/signup" className="underline">
               Sign up
             </Link>

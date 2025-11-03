@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStatus } from "@/hooks/use-auth-status";
 import { clearSession } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 
 export default function Header() {
   const router = useRouter();
   const { isLoggedIn, userEmail } = useAuthStatus();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     clearSession();
     router.replace("/login");
   };

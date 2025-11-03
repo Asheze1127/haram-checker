@@ -1,9 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuthStatus } from "@/hooks/use-auth-status";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,25 +14,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase";
+import { startSession } from "@/lib/auth";
 
 export default function SignupPage() {
   const router = useRouter();
-  const { isLoggedIn } = useAuthStatus();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [passwordConf, setPasswordConf] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-    if (!email || !password) {
+    if (!email.trim() || !password) {
       setError("メールアドレスとパスワードを入力してください。");
       return;
     }
 
-    if (password !== passwordConf) {
+    if (password !== confirmPassword) {
       setError("パスワードが一致しません。");
       return;
     }
@@ -42,19 +41,28 @@ export default function SignupPage() {
     setIsSubmitting(true);
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: email,
-        password: password,
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
       });
 
       if (signUpError) {
         throw signUpError;
       }
 
-      alert("登録完了メールを確認してください");
-      router.replace("/");
-    } catch (error: any) {
-      setError(error.message || "エラーが発生しました");
+      if (data.session) {
+        startSession(email.trim());
+        router.replace("/");
+        return;
+      }
+
+      alert("登録完了メールを確認してください。");
+      router.replace("/login");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "エラーが発生しました。";
+      setError(message);
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -69,7 +77,7 @@ export default function SignupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-4" onSubmit={onSubmit}>
+          <form className="grid gap-4" onSubmit={handleSubmit}>
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -100,8 +108,8 @@ export default function SignupPage() {
                 type="password"
                 autoComplete="new-password"
                 required
-                value={passwordConf}
-                onChange={(event) => setPasswordConf(event.target.value)}
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
               />
             </div>
             {error && (
