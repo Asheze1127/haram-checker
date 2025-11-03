@@ -8,6 +8,27 @@ import { AuthGuard } from "@/components/auth-guard";
 
 type CaptureStage = "product" | "ingredients" | "completed";
 
+// ★ Gemini API レスポンスの型定義
+interface HaramCheckResult {
+  has_label_in_image: boolean;
+  used_label_text: boolean;
+  judgment: "HALAL" | "HARAM" | "UNKNOWN";
+  confidence: number;
+  evidence: { positive: string[]; negative: string[] };
+  certifications: string[];
+  ingredients_flags: {
+    haram: string[];
+    suspect: string[];
+    safe: string[];
+  };
+  allergens: {
+    found: string[];
+    suspect: string[];
+  };
+  notes_for_user: string;
+  recommended_next_actions: string[];
+}
+
 export default function HomePage() {
   // ★ 撮影段階を管理：product（1枚目）→ ingredients（2枚目）→ completed（完了）
   const [captureStage, setCaptureStage] = useState<CaptureStage>("product");
@@ -20,9 +41,51 @@ export default function HomePage() {
   
   // ★ MediaStream を useState で保持（ストリーム停止を防ぐ）
   const [stream, setStream] = useState<MediaStream | null>(null);
+
+  // ★ ハラル判定結果を表示するかどうか
+  const [showResult, setShowResult] = useState<boolean>(false);
+  const [haramCheckResult, setHaramCheckResult] = useState<HaramCheckResult | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // ★ モックデータ
+  const mockHaramCheckResult: HaramCheckResult = {
+    has_label_in_image: false,
+    used_label_text: true,
+    judgment: "UNKNOWN",
+    confidence: 0.65,
+    evidence: { positive: [], negative: [] },
+    certifications: [],
+    ingredients_flags: {
+      haram: [],
+      suspect: [
+        "乳化剤（大豆由来）の製造過程",
+        "香料（乳由来）の製造過程",
+        "膨脹剤の成分由来",
+        "カラメル色素の製造過程"
+      ],
+      safe: [
+        "小麦粉",
+        "チョコレートチップ",
+        "砂糖",
+        "植物油脂",
+        "でん粉",
+        "卵黄",
+        "食塩",
+        "全粉乳"
+      ]
+    },
+    allergens: {
+      found: ["卵", "乳", "小麦"],
+      suspect: ["大豆"]
+    },
+    notes_for_user: "提供された画像（不二家カントリーマアム クリスピー バニラ）にはハラル認証マークが確認できません。原材料（検索結果に基づく）に明確なハラム成分（豚、アルコール、不明由来ゼラチンなど）は含まれていませんが、乳化剤、香料、膨脹剤などの添加物の詳細な由来（特に動物性由来やアルコール使用の可能性）が不明なため、「UNKNOWN」と判定します。アレルゲンとして、卵、乳、小麦、大豆が含まれます。",
+    recommended_next_actions: [
+      "製造元（不二家）に添加物（乳化剤、香料、膨脹剤など）の動物性由来・アルコール不使用について確認",
+      "ハラル認証のある類似製品を検討"
+    ]
+  };
 
   // ★ ストリーム取得 & ビデオ要素へ設定
   const startCamera = async () => {
@@ -233,7 +296,9 @@ export default function HomePage() {
   const confirmPhotos = () => {
     console.log("Product image:", productImage?.file);
     console.log("Ingredients image:", ingredientsImage?.file);
-    // ここで API にアップロードするなどの処理を追加可能
+    // ★ モックレスポンスを表示
+    setHaramCheckResult(mockHaramCheckResult);
+    setShowResult(true);
   };
 
   // ★ 指示テキストを取得
@@ -246,12 +311,222 @@ export default function HomePage() {
     return "";
   };
 
+  // ★ 結果画面から戻る
+  const goBackToCapture = () => {
+    setShowResult(false);
+    setHaramCheckResult(null);
+    setProductImage(null);
+    setIngredientsImage(null);
+    setCaptureStage("product");
+    setShowPreview(false);
+  };
+
   const userInfomation = "";
 
   return (
     <AuthGuard>
       {userInfomation === null ? (
         <FirstQuestion />
+      ) : showResult && haramCheckResult ? (
+        // ★ ハラル判定結果画面（白基調 + #3EB34F）
+        <div className="w-full min-h-screen bg-white p-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* ヘッダー */}
+            <div className="text-center mb-8 pb-6 border-b-4" style={{ borderColor: "#3EB34F" }}>
+              <h1 className="text-4xl font-bold mb-2" style={{ color: "#3EB34F" }}>
+                ハラル判定結果
+              </h1>
+              <p className="text-gray-600 text-lg">詳細な分析結果</p>
+            </div>
+
+            {/* 判定結果セクション */}
+            <div 
+              className="rounded-xl p-8 text-white shadow-lg"
+              style={{ backgroundColor: "#3EB34F" }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm opacity-80 mb-2">ハラル判定</p>
+                  <h2 className="text-4xl font-bold">
+                    {haramCheckResult.judgment === "HALAL"
+                      ? "✓ ハラル"
+                      : haramCheckResult.judgment === "HARAM"
+                      ? "✗ ハラム"
+                      : "？ 不明"}
+                  </h2>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm opacity-80 mb-2">信頼度</p>
+                  <p className="text-4xl font-bold">{(haramCheckResult.confidence * 100).toFixed(0)}%</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 成分情報セクション */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* ハラム成分 */}
+              <div className="border-l-4 border-red-500 rounded-lg p-5 bg-red-50">
+                <h3 className="text-red-700 font-bold mb-3 flex items-center gap-2 text-lg">
+                  <span className="text-2xl">✗</span> ハラム成分
+                </h3>
+                {haramCheckResult.ingredients_flags.haram.length > 0 ? (
+                  <ul className="space-y-2">
+                    {haramCheckResult.ingredients_flags.haram.map((item, idx) => (
+                      <li key={idx} className="text-red-700 text-sm">• {item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-500 text-sm">検出されていません</p>
+                )}
+              </div>
+
+              {/* 疑わしい成分 */}
+              <div className="border-l-4 border-yellow-500 rounded-lg p-5 bg-yellow-50">
+                <h3 className="text-yellow-700 font-bold mb-3 flex items-center gap-2 text-lg">
+                  <span className="text-2xl">!</span> 疑わしい成分
+                </h3>
+                {haramCheckResult.ingredients_flags.suspect.length > 0 ? (
+                  <ul className="space-y-2">
+                    {haramCheckResult.ingredients_flags.suspect.map((item, idx) => (
+                      <li key={idx} className="text-yellow-700 text-sm">• {item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-500 text-sm">検出されていません</p>
+                )}
+              </div>
+
+              {/* 安全な成分 */}
+              <div 
+                className="border-l-4 rounded-lg p-5 text-white"
+                style={{ 
+                  borderColor: "#3EB34F",
+                  backgroundColor: "rgba(62, 179, 79, 0.1)"
+                }}
+              >
+                <h3 
+                  className="font-bold mb-3 flex items-center gap-2 text-lg"
+                  style={{ color: "#3EB34F" }}
+                >
+                  <span className="text-2xl">✓</span> 安全な成分
+                </h3>
+                {haramCheckResult.ingredients_flags.safe.length > 0 ? (
+                  <ul className="space-y-2 max-h-40 overflow-y-auto">
+                    {haramCheckResult.ingredients_flags.safe.map((item, idx) => (
+                      <li key={idx} className="text-gray-700 text-sm">• {item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-500 text-sm">検出されていません</p>
+                )}
+              </div>
+            </div>
+
+            {/* アレルゲン情報セクション */}
+            <div 
+              className="rounded-lg p-6 border-2"
+              style={{ 
+                borderColor: "#3EB34F",
+                backgroundColor: "rgba(62, 179, 79, 0.05)"
+              }}
+            >
+              <h3 
+                className="font-bold mb-4 text-lg"
+                style={{ color: "#3EB34F" }}
+              >
+                アレルゲン情報
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 含有アレルゲン */}
+                <div>
+                  <p className="text-gray-700 font-semibold mb-3">含有:</p>
+                  {haramCheckResult.allergens.found.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {haramCheckResult.allergens.found.map((allergen, idx) => (
+                        <span 
+                          key={idx} 
+                          className="text-white px-4 py-2 rounded-full text-sm font-medium shadow"
+                          style={{ backgroundColor: "#ff4444" }}
+                        >
+                          {allergen}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-sm">なし</p>
+                  )}
+                </div>
+                {/* 疑わしいアレルゲン */}
+                <div>
+                  <p className="text-gray-700 font-semibold mb-3">疑わしい:</p>
+                  {haramCheckResult.allergens.suspect.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {haramCheckResult.allergens.suspect.map((allergen, idx) => (
+                        <span 
+                          key={idx} 
+                          className="text-white px-4 py-2 rounded-full text-sm font-medium shadow"
+                          style={{ backgroundColor: "#ffaa00" }}
+                        >
+                          {allergen}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-sm">なし</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ユーザー向けメモ */}
+            <div className="bg-gray-50 border-l-4 border-gray-400 rounded-lg p-6">
+              <h3 className="text-gray-800 font-bold mb-4 text-lg"> 詳細情報</h3>
+              <p className="text-gray-700 leading-relaxed">
+                {haramCheckResult.notes_for_user}
+              </p>
+            </div>
+
+            {/* 推奨アクション */}
+            <div 
+              className="rounded-lg p-6 border-2"
+              style={{ 
+                borderColor: "#3EB34F",
+                backgroundColor: "rgba(62, 179, 79, 0.08)"
+              }}
+            >
+              <h3 
+                className="font-bold mb-4 text-lg"
+                style={{ color: "#3EB34F" }}
+              >
+                推奨アクション
+              </h3>
+              <ol className="space-y-3">
+                {haramCheckResult.recommended_next_actions.map((action, idx) => (
+                  <li key={idx} className="text-gray-700 flex gap-4">
+                    <span 
+                      className="font-bold text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: "#3EB34F" }}
+                    >
+                      {idx + 1}
+                    </span>
+                    <span className="pt-0.5">{action}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            {/* ボタン */}
+            <div className="flex gap-4 justify-center pt-6">
+              <Button
+                onClick={goBackToCapture}
+                className="px-8 py-3 text-lg text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-shadow"
+                style={{ backgroundColor: "#3EB34F" }}
+              >
+                ← 戻る
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="w-full h-screen bg-black flex flex-col relative">
           {/* カメラビュー */}
