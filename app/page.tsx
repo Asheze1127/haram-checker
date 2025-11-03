@@ -1,7 +1,19 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { use, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FirstQuestion } from "@/components/FirstQuestion";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { AuthGuard } from "@/components/auth-guard";
 
@@ -113,8 +125,8 @@ export default function HomePage() {
         }, "image/jpeg", 0.95);
       }
     }
-  };
 
+  };
   const retakePhoto = async () => {
     setCapturedImage(null);
     setShowPreview(false);
@@ -127,6 +139,8 @@ export default function HomePage() {
     console.log("Photo confirmed:", capturedImage);
     // ここで画像をサーバーに送信するなどの処理を追加
   };
+
+  const userInfomation = null;
 
   return (
     <AuthGuard>

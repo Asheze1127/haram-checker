@@ -3,15 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStatus } from "@/hooks/use-auth-status";
+import { clearSession } from "@/lib/auth";
 
 export default function Header() {
   const router = useRouter();
   const { isLoggedIn, userEmail } = useAuthStatus();
 
   const handleLogout = () => {
-    window.localStorage.removeItem("isLoggedIn");
-    window.localStorage.removeItem("userEmail");
-    window.dispatchEvent(new Event("authchange"));
+    clearSession();
     router.replace("/login");
   };
 
@@ -31,9 +30,7 @@ export default function Header() {
           {isLoggedIn ? (
             <>
               {userEmail && (
-                <span className="text-xs text-muted-foreground">
-                  {userEmail}
-                </span>
+                <span className="text-xs text-muted-foreground">{userEmail}</span>
               )}
               <button
                 type="button"
