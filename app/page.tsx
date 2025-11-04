@@ -778,7 +778,7 @@ export default function HomePage() {
                     disabled={isLoading}
                     className="bg-green-600 hover:bg-green-700 px-6 sm:px-8 py-2.5 sm:py-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base w-full sm:w-auto"
                   >
-                    {isLoading ? t("camera.analyzing") : t("camera.confirm")}
+                    {isLoading ? <Spinner/> : t("camera.confirm")}
                   </Button>
                 ) : (
                   <Button
