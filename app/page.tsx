@@ -7,6 +7,7 @@ import Image from "next/image";
 import { AuthGuard } from "@/components/auth-guard";
 import { useTranslate } from "@/hooks/use-translate";
 import { supabase } from "@/lib/supabase";
+import { Spinner } from "@/components/ui/spinner";
 
 type CaptureStage = "product" | "ingredients" | "completed";
 
